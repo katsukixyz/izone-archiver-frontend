@@ -7,32 +7,30 @@ import { Nav, Navbar } from "react-bootstrap";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "antd/dist/antd.css";
 import { BrowserRouter as Router, Route, Switch } from "react-router-dom";
-import logo from "./logo.svg";
+import logo from "../public/logo.svg";
 
 //! https://betterprogramming.pub/how-to-hide-your-api-keys-c2b952bc07e6
 //! https://stackoverflow.com/questions/57358605/multiple-filters-in-react
 //TODO Get load more option working? or not
 
-// const apiKey = "imgH1bubQ0uXiD8lJAHERB4O6073d513";
-
 export default function App() {
   return (
-    <Router>
-      <div className="app">
-        <Navbar bg="dark" variant="dark" expand="lg">
-          <Navbar.Brand href="/">
-            <img src={logo} width="46" height="44" />
-          </Navbar.Brand>
-          <Navbar.Collapse className="justify-content-end">
-            <Nav.Link href="/donate" style={{ color: "white" }}>
-              Donate
-            </Nav.Link>
-            <Nav.Link href="/contact" style={{ color: "white" }}>
-              Contact
-            </Nav.Link>
-          </Navbar.Collapse>
-        </Navbar>
-        <Switch>
+    // <Router>
+    <div className="app">
+      <Navbar bg="dark" variant="dark" expand="lg">
+        <Navbar.Brand href="/">
+          <img src={logo} width="46" height="44" />
+        </Navbar.Brand>
+        <Navbar.Collapse className="justify-content-end">
+          <Nav.Link href="/donate" style={{ color: "white" }}>
+            Donate
+          </Nav.Link>
+          <Nav.Link href="/contact" style={{ color: "white" }}>
+            Contact
+          </Nav.Link>
+        </Navbar.Collapse>
+      </Navbar>
+      {/* <Switch>
           <Route
             exact
             path="/"
@@ -46,9 +44,9 @@ export default function App() {
               return <VideoPage {...props} />;
             }}
           />
-        </Switch>
-      </div>
-    </Router>
+        </Switch> */}
+    </div>
+    // </Router>
   );
 }
 

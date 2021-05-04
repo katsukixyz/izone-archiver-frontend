@@ -76,7 +76,6 @@ const VideoPage = (props) => {
               height="100%"
               controls
               playing
-              playIcon={<PlayCircleFilled />}
               config={{
                 file: {
                   attributes: {
