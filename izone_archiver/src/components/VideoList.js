@@ -42,8 +42,69 @@ const { Option } = Select;
 const { Title } = Typography;
 
 //! https://betterprogramming.pub/how-to-hide-your-api-keys-c2b952bc07e6
-//! https://stackoverflow.com/questions/57358605/multiple-filters-in-react
 //TODO Get load more option working? or not
+
+function pullData(setData, setListData) {
+  s3.listObjectsV2(
+    {
+      Bucket: process.env.REACT_APP_BUCKET_NAME,
+      // Delimiter: "/",
+      MaxKeys: 999999,
+    },
+    function (err, resp) {
+      if (err) {
+        console.log(err, err.stack);
+      } else {
+        const keys = resp.Contents.map((o) => o.Key);
+        let uniqueDirs = [];
+        keys.forEach((key) => {
+          if (!uniqueDirs.includes(key.split("/")[0])) {
+            uniqueDirs.push(key.split("/")[0]);
+          }
+        });
+
+        let vidArr = [];
+        uniqueDirs.forEach((dir) => {
+          const vidFiles = keys.filter((element) => element.startsWith(dir));
+          //duration requires a getObject call, perhaps try to generate using python?
+          const vidPath = vidFiles.filter((element) =>
+            element.endsWith(".mp4")
+          )[0];
+          const thumbPath = vidFiles.filter((element) =>
+            element.endsWith(".jpg")
+          )[0];
+          const title = vidPath.split("/")[1].replace(".mp4", "");
+          const vidUrl = `https://${process.env.REACT_APP_BUCKET_NAME}.s3.us-east-2.amazonaws.com/${vidPath}`;
+          const thumbUrl = `https://${process.env.REACT_APP_BUCKET_NAME}.s3.us-east-2.amazonaws.com/${thumbPath}`;
+
+          let subs = [];
+          const subFiles = vidFiles.filter((element) =>
+            element.endsWith(".vtt")
+          );
+          subFiles.forEach((subPath) => {
+            const sub = subPath.split("/")[1];
+            subs.push({
+              kind: "subtitles",
+              src: `https://${process.env.REACT_APP_BUCKET_NAME}.s3.us-east-2.amazonaws.com/${subPath}`,
+              srcLang: sub,
+            });
+          });
+
+          vidArr.push({
+            title: title,
+            vidUrl: vidUrl,
+            subs: subs,
+            thumbUrl: thumbUrl,
+          });
+        });
+
+        setData(combineMeta(vidArr));
+        //   setListData(combineMeta(vidArr));
+        combineFilters(combineMeta(vidArr), null, "desc", setListData);
+      }
+    }
+  );
+}
 
 function combineMeta(data) {
   let filteredData = data.map(({ title, vidUrl, subs, thumbUrl }) => {
@@ -71,7 +132,6 @@ function Duration({ timestamp }) {
 }
 
 function combineFilters(data, dateRange, sort, setListData) {
-  console.log(data, dateRange, sort);
   let dateFilteredListData;
   let sortFilteredListData;
   //date comes first
@@ -120,7 +180,7 @@ function onRangeChange(
   setDateRange(value);
 }
 
-const VideoList = () => {
+const VideoList = (props) => {
   const [listData, setListData] = useState([]);
   const [data, setData] = useState([]);
 
@@ -128,64 +188,16 @@ const VideoList = () => {
   const [sort, setSort] = useState("desc");
 
   useEffect(() => {
-    s3.listObjectsV2(
-      {
-        Bucket: process.env.REACT_APP_BUCKET_NAME,
-        // Delimiter: "/",
-        MaxKeys: 999999,
-      },
-      function (err, resp) {
-        if (err) {
-          console.log(err, err.stack);
-        } else {
-          const keys = resp.Contents.map((o) => o.Key);
-          let uniqueDirs = [];
-          keys.forEach((key) => {
-            if (!uniqueDirs.includes(key.split("/")[0])) {
-              uniqueDirs.push(key.split("/")[0]);
-            }
-          });
-
-          let vidArr = [];
-          uniqueDirs.forEach((dir) => {
-            const vidFiles = keys.filter((element) => element.startsWith(dir));
-            //duration requires a getObject call, perhaps try to generate using python?
-            const vidPath = vidFiles.filter((element) =>
-              element.endsWith(".mp4")
-            )[0];
-            const thumbPath = vidFiles.filter((element) =>
-              element.endsWith(".jpg")
-            )[0];
-            const title = vidPath.split("/")[1].replace(".mp4", "");
-            const vidUrl = `https://${process.env.REACT_APP_BUCKET_NAME}.s3.us-east-2.amazonaws.com/${vidPath}`;
-            const thumbUrl = `https://${process.env.REACT_APP_BUCKET_NAME}.s3.us-east-2.amazonaws.com/${thumbPath}`;
-
-            let subs = [];
-            const subFiles = vidFiles.filter((element) =>
-              element.endsWith(".vtt")
-            );
-            subFiles.forEach((subPath) => {
-              const sub = subPath.split("/")[1];
-              subs.push({
-                kind: "subtitles",
-                src: `https://${process.env.REACT_APP_BUCKET_NAME}.s3.us-east-2.amazonaws.com/${subPath}`,
-                srcLang: sub,
-              });
-            });
-
-            vidArr.push({
-              title: title,
-              vidUrl: vidUrl,
-              subs: subs,
-              thumbUrl: thumbUrl,
-            });
-          });
-          setData(combineMeta(vidArr));
-          //   setListData(combineMeta(vidArr));
-          combineFilters(combineMeta(vidArr), null, "desc", setListData);
-        }
-      }
-    );
+    if (!props.location.state) {
+      pullData(setData, setListData);
+    } else {
+      const { data, listData, sort, dateRange } = props.location.state;
+      setData(data);
+      setListData(listData);
+      setSort(sort);
+      setDateRange(dateRange);
+      props.history.replace("", null);
+    }
   }, []);
 
   return (
@@ -224,7 +236,18 @@ const VideoList = () => {
             key={item.id}
             style={{ paddingTop: "5px", paddingBottom: "5px" }}
           >
-            <Link to={{ pathname: `/video/${item.id}`, state: { ...item } }}>
+            <Link
+              to={{
+                pathname: `/video/${item.id}`,
+                state: {
+                  ...item,
+                  data: data,
+                  listData: listData,
+                  sort: sort,
+                  dateRange: dateRange,
+                },
+              }}
+            >
               <div
                 className="card"
                 style={{

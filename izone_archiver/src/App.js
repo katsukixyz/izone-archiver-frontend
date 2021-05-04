@@ -24,16 +24,22 @@ export default function App() {
             <img src={logo} width="46" height="44" />
           </Navbar.Brand>
           <Navbar.Collapse className="justify-content-end">
-            <Nav.Link href="#donate" style={{ color: "white" }}>
+            <Nav.Link href="/donate" style={{ color: "white" }}>
               Donate
             </Nav.Link>
-            <Nav.Link href="#contact" style={{ color: "white" }}>
+            <Nav.Link href="/contact" style={{ color: "white" }}>
               Contact
             </Nav.Link>
           </Navbar.Collapse>
         </Navbar>
         <Switch>
-          <Route exact path="/" component={VideoList} />
+          <Route
+            exact
+            path="/"
+            render={(props) => {
+              return <VideoList {...props} />;
+            }}
+          />
           <Route
             path="/video/:id"
             render={(props) => {
