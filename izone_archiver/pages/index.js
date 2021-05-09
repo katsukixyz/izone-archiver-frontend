@@ -38,7 +38,7 @@ export default function VideoList({ data, initListData }) {
 
   function fetchNextData() {
     //compare listData to data and get n more results
-    const sortedData = combineFilters(data, listData, dateRange, sort);
+    const sortedData = combineFilters(data, dateRange, sort);
     if (sortedData.length !== listData.length) {
       const lastIndex = listData.length - 1;
       const index = sortedData.findIndex(
@@ -74,10 +74,7 @@ export default function VideoList({ data, initListData }) {
           value={dateRange}
           onChange={(value) => {
             setDateRange(value);
-            const sorted = combineFilters(data, listData, value, sort).slice(
-              0,
-              20
-            );
+            const sorted = combineFilters(data, value, sort).slice(0, 20);
             // const nMatchedListData = sorted.slice(0, 20);
             setListData(sorted);
           }}
@@ -87,12 +84,7 @@ export default function VideoList({ data, initListData }) {
           defaultValue="desc"
           onChange={(value) => {
             setSort(value);
-            const sorted = combineFilters(
-              data,
-              listData,
-              dateRange,
-              value
-            ).slice(0, 20);
+            const sorted = combineFilters(data, dateRange, value).slice(0, 20);
             // const nMatchedListData = sorted.slice(0, 20);
             setListData(sorted);
           }}
@@ -186,12 +178,12 @@ export default function VideoList({ data, initListData }) {
   );
 }
 
-function combineFilters(data, listData, dateRange, sort) {
+function combineFilters(data, dateRange, sort) {
   let dateFilteredListData;
   let sortFilteredListData;
   //date comes first
   if (dateRange != null) {
-    dateFilteredListData = listData.filter(function (item) {
+    dateFilteredListData = data.filter(function (item) {
       if (
         dayjs
           .utc(item.date)
@@ -273,7 +265,7 @@ export async function getStaticProps() {
   const allVidArr = ParseKeys(allKeys);
 
   const data = combineMeta(allVidArr);
-  let initListData = combineFilters(combineMeta(allVidArr), [], null, "desc");
+  let initListData = combineFilters(combineMeta(allVidArr), null, "desc");
   initListData = initListData.slice(0, 20);
   return {
     props: {
