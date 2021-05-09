@@ -1,56 +1,55 @@
-import React, { useState, useEffect, useContext } from "react";
-import Image from "next/image";
+import React, { useEffect, useContext } from "react";
 import Link from "next/link";
-// import VideoPage from "./components/VideoPage";
-// import VideoList from "./components/VideoList";
-import { Nav, Navbar } from "react-bootstrap";
-// import "bootstrap/dist/css/bootstrap.min.css";
-import moment from "moment";
-import Moment from "react-moment";
+import ParseKeys from "../components/ParseKeys";
+import * as dayjs from "dayjs";
+import isBetween from "dayjs/plugin/isBetween";
+import utc from "dayjs/plugin/utc";
+import InfiniteScroll from "react-infinite-scroll-component";
 import { video_meta } from "../src/all_videos_new";
-import {
-  Layout,
-  Button,
-  Modal,
-  Tabs,
-  Row,
-  List,
-  Select,
-  Typography,
-  DatePicker,
-  Dropdown,
-} from "antd";
-import {
-  DownOutlined,
-  CaretRightOutlined,
-  PlayCircleFilled,
-} from "@ant-design/icons";
-import _ from "lodash";
+import { Select, Typography, DatePicker } from "antd";
+import { PlayCircleFilled } from "@ant-design/icons";
 import ReactPlayer from "react-player";
 import ListDataContext from "../contexts/ListDataContext";
 import DateRangeContext from "../contexts/DateRangeContext";
 import SortContext from "../contexts/SortContext";
 
-const AWS = require("aws-sdk");
-AWS.config.update({
-  accessKeyId: process.env.NEXT_PUBLIC_AWS_ACCESS_KEY_ID,
-  secretAccessKey: process.env.NEXT_PUBLIC_AWS_SECRET_ACCESS_KEY,
+const S3 = require("aws-sdk/clients/s3");
+const s3 = new S3({
   region: "us-east-2",
+  credentials: {
+    accessKeyId: process.env.NEXT_PUBLIC_AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.NEXT_PUBLIC_AWS_SECRET_ACCESS_KEY,
+  },
 });
-const s3 = new AWS.S3();
 
 const { RangePicker } = DatePicker;
 const { Option } = Select;
 const { Title } = Typography;
 
+dayjs.extend(isBetween);
+dayjs.extend(utc);
+
 //! https://betterprogramming.pub/how-to-hide-your-api-keys-c2b952bc07e6
-//! https://stackoverflow.com/questions/57358605/multiple-filters-in-react
-//TODO Get load more option working? or not
 
 export default function VideoList({ data, initListData }) {
   const { listData, setListData } = useContext(ListDataContext);
   const { dateRange, setDateRange } = useContext(DateRangeContext);
   const { sort, setSort } = useContext(SortContext);
+
+  function fetchNextData() {
+    //compare listData to data and get n more results
+    const sortedData = combineFilters(data, listData, dateRange, sort);
+    if (sortedData.length !== listData.length) {
+      const lastIndex = listData.length - 1;
+      const index = sortedData.findIndex(
+        (element) =>
+          JSON.stringify(element) === JSON.stringify(listData[lastIndex])
+      );
+      const remainingArr = sortedData.slice(index + 1, listData.length + 20); //next n elements
+      const combinedArr = listData.concat(remainingArr);
+      setListData(combinedArr);
+    }
+  }
 
   useEffect(() => {
     if (listData.length !== 0) {
@@ -62,12 +61,24 @@ export default function VideoList({ data, initListData }) {
 
   return (
     <div className="app">
-      <div className="filter">
+      <div
+        className="filter"
+        style={{
+          position: "-webkit-sticky",
+          position: "sticky",
+          top: 0,
+          zIndex: 10,
+        }}
+      >
         <RangePicker
           value={dateRange}
           onChange={(value) => {
             setDateRange(value);
-            const sorted = combineFilters(data, value, sort);
+            const sorted = combineFilters(data, listData, value, sort).slice(
+              0,
+              20
+            );
+            // const nMatchedListData = sorted.slice(0, 20);
             setListData(sorted);
           }}
         />
@@ -76,7 +87,13 @@ export default function VideoList({ data, initListData }) {
           defaultValue="desc"
           onChange={(value) => {
             setSort(value);
-            const sorted = combineFilters(data, dateRange, value);
+            const sorted = combineFilters(
+              data,
+              listData,
+              dateRange,
+              value
+            ).slice(0, 20);
+            // const nMatchedListData = sorted.slice(0, 20);
             setListData(sorted);
           }}
         >
@@ -84,94 +101,102 @@ export default function VideoList({ data, initListData }) {
           <Option value="asc">Least to most recent</Option>
         </Select>
       </div>
-      <div
-        className="list"
-        style={{
-          maxWidth: "1000px",
-          display: "block",
-          marginLeft: "auto",
-          marginRight: "auto",
-        }}
+      <InfiniteScroll
+        dataLength={listData ? listData.length : 0}
+        hasMore={true}
+        scrollThreshold={1}
+        next={() => fetchNextData()}
+        scrollableTarget="app"
+        // height={100}
       >
-        {listData
-          ? listData.map((item) => (
-              <div
-                key={item.id}
-                style={{ paddingTop: "5px", paddingBottom: "5px" }}
-              >
+        <div
+          className="list"
+          style={{
+            maxWidth: "1000px",
+            display: "block",
+            marginLeft: "auto",
+            marginRight: "auto",
+          }}
+        >
+          {listData
+            ? listData.map((item) => (
                 <div
-                  className="card"
-                  style={{
-                    paddingLeft: "10px",
-                    paddingRight: "10px",
-                    padding: "20px",
-                    borderRadius: "6px",
-                    justifyContent: "space-between",
-                    display: "flex",
-                    flexDirection: "row",
-                    border: "0px",
-                    boxShadow:
-                      "0 5px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)",
-                  }}
+                  key={item.id}
+                  style={{ paddingTop: "5px", paddingBottom: "5px" }}
                 >
-                  <div className="cardMeta" style={{ width: "75%" }}>
-                    <Title level={4}>{item.title}</Title>
-                    <p>
-                      <Moment local utc format="MMMM Do YYYY, h:mm:ss A">
-                        {item.date}
-                      </Moment>
-                    </p>
-                    <p style={{ color: "black" }}>
-                      <Duration timestamp={item.duration} />
-                    </p>
-                  </div>
-                  <div className="video" style={{ width: "25%" }}>
-                    <Link href={`/video/${item.id}`}>
-                      <ReactPlayer
-                        url={item.vidUrl}
-                        width="100%"
-                        height="100%"
-                        light={item.thumbUrl}
-                        controls
-                        playIcon={
-                          <PlayCircleFilled
-                            style={{ fontSize: "26px", color: "white" }}
-                          />
-                        }
-                        //   onReady={() => {
-                        //     router.push({
-                        //       pathname: `/video/${item.id}`,
-                        //       query: {},
-                        //     });
-                        //   }}
-                        config={{
-                          file: {
-                            attributes: {
-                              crossOrigin: "true",
+                  <div
+                    className="card"
+                    style={{
+                      paddingLeft: "10px",
+                      paddingRight: "10px",
+                      padding: "20px",
+                      borderRadius: "6px",
+                      justifyContent: "space-between",
+                      display: "flex",
+                      flexDirection: "row",
+                      border: "0px",
+                      boxShadow:
+                        "0 5px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)",
+                    }}
+                  >
+                    <div className="cardMeta" style={{ width: "75%" }}>
+                      <Title level={4}>{item.title}</Title>
+                      <p>
+                        {dayjs
+                          .utc(item.date)
+                          .local()
+                          .format("MMMM D YYYY, h:mm:ss A")}
+                      </p>
+                      <p style={{ color: "black" }}>
+                        <Duration timestamp={item.duration} />
+                      </p>
+                    </div>
+                    <div className="video" style={{ width: "25%" }}>
+                      <Link href={`/video/${item.id}`}>
+                        <ReactPlayer
+                          url={item.vidUrl}
+                          width="100%"
+                          height="100%"
+                          light={item.thumbUrl}
+                          controls
+                          playIcon={
+                            <PlayCircleFilled
+                              style={{ fontSize: "26px", color: "white" }}
+                            />
+                          }
+                          config={{
+                            file: {
+                              attributes: {
+                                crossOrigin: "true",
+                                controlsList: "nodownload",
+                              },
                             },
-                          },
-                          tracks: item.subs ? item.subs : [],
-                        }}
-                      />
-                    </Link>
+                            tracks: item.subs ? item.subs : [],
+                          }}
+                        />
+                      </Link>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))
-          : []}
-      </div>
+              ))
+            : []}
+        </div>
+      </InfiniteScroll>
     </div>
   );
 }
 
-function combineFilters(data, dateRange, sort) {
+function combineFilters(data, listData, dateRange, sort) {
   let dateFilteredListData;
   let sortFilteredListData;
   //date comes first
   if (dateRange != null) {
-    dateFilteredListData = data.filter(function (item) {
+    dateFilteredListData = listData.filter(function (item) {
       if (
-        moment(item.date).isBetween(dateRange[0], dateRange[1], "day", "[]")
+        dayjs
+          .utc(item.date)
+          .local()
+          .isBetween(dateRange[0], dateRange[1], "day", "[]")
       ) {
         return true;
       }
@@ -180,27 +205,26 @@ function combineFilters(data, dateRange, sort) {
     if (sort === "asc") {
       //destructive, changes dateFilteredListData
       sortFilteredListData = dateFilteredListData.sort(
-        (a, b) => moment(a.date).unix() - moment(b.date).unix()
+        (a, b) => dayjs(a.date).unix() - dayjs(b.date).unix()
       );
     } else {
       sortFilteredListData = dateFilteredListData.sort(
-        (a, b) => moment(b.date).unix() - moment(a.date).unix()
+        (a, b) => dayjs(b.date).unix() - dayjs(a.date).unix()
       );
     }
   } else {
     if (sort === "asc") {
       //destructive, changes dateFilteredListData
       sortFilteredListData = data.sort(
-        (a, b) => moment(a.date).unix() - moment(b.date).unix()
+        (a, b) => dayjs(a.date).unix() - dayjs(b.date).unix()
       );
     } else {
       sortFilteredListData = data.sort(
-        (a, b) => moment(b.date).unix() - moment(a.date).unix()
+        (a, b) => dayjs(b.date).unix() - dayjs(a.date).unix()
       );
     }
   }
   return sortFilteredListData;
-  //   setListData(sortFilteredListData);
 }
 
 function Duration({ timestamp }) {
@@ -214,6 +238,7 @@ function Duration({ timestamp }) {
 }
 
 function combineMeta(data) {
+  //from aws
   let filteredData = data.map(({ title, vidUrl, subs, thumbUrl }) => {
     return {
       id: parseInt(title),
@@ -222,62 +247,34 @@ function combineMeta(data) {
       thumbUrl: thumbUrl,
     };
   });
-  const mergedList = _.map(filteredData, function (item) {
-    return _.extend(item, _.find(video_meta, { id: item.id }));
-  });
-  return mergedList;
+  const mergedArr = filteredData.map((item, index) =>
+    Object.assign({}, item, video_meta[553 - index])
+  );
+  return mergedArr;
 }
 
-function pullData(resp) {
-  const keys = resp.Contents.map((o) => o.Key);
-  let uniqueDirs = [];
-  keys.forEach((key) => {
-    if (!uniqueDirs.includes(key.split("/")[0])) {
-      uniqueDirs.push(key.split("/")[0]);
-    }
-  });
-
-  let vidArr = [];
-  uniqueDirs.forEach((dir) => {
-    const vidFiles = keys.filter((element) => element.startsWith(dir));
-    //duration requires a getObject call, perhaps try to generate using python?
-    const vidPath = vidFiles.filter((element) => element.endsWith(".mp4"))[0];
-    const thumbPath = vidFiles.filter((element) => element.endsWith(".jpg"))[0];
-    const title = vidPath.split("/")[1].replace(".mp4", "");
-    const vidUrl = `https://${process.env.NEXT_PUBLIC_BUCKET_NAME}.s3.us-east-2.amazonaws.com/${vidPath}`;
-    const thumbUrl = `https://${process.env.NEXT_PUBLIC_BUCKET_NAME}.s3.us-east-2.amazonaws.com/${thumbPath}`;
-
-    let subs = [];
-    const subFiles = vidFiles.filter((element) => element.endsWith(".vtt"));
-    subFiles.forEach((subPath) => {
-      const sub = subPath.split("/")[1];
-      subs.push({
-        kind: "subtitles",
-        src: `https://${process.env.NEXT_PUBLIC_BUCKET_NAME}.s3.us-east-2.amazonaws.com/${subPath}`,
-        srcLang: sub,
-      });
-    });
-
-    vidArr.push({
-      title: title,
-      vidUrl: vidUrl,
-      subs: subs,
-      thumbUrl: thumbUrl,
-    });
-  });
-  return vidArr;
-}
-
-const params = {
-  Bucket: process.env.NEXT_PUBLIC_BUCKET_NAME,
-  MaxKeys: 999999,
-};
-
-export async function getStaticProps() {
+async function listAllKeys(params, allKeys = []) {
   const resp = await s3.listObjectsV2(params).promise();
-  const vidArr = pullData(resp);
-  const data = combineMeta(vidArr);
-  const initListData = combineFilters(combineMeta(vidArr), null, "desc");
+
+  resp.Contents.forEach((o) => allKeys.push(o.Key));
+
+  if (resp.NextContinuationToken) {
+    params.ContinuationToken = resp.NextContinuationToken;
+    await listAllKeys(params, allKeys);
+  }
+  return allKeys;
+}
+// export async function getServerSideProps() {
+export async function getStaticProps() {
+  const allKeys = await listAllKeys({
+    Bucket: process.env.NEXT_PUBLIC_BUCKET_NAME,
+  });
+
+  const allVidArr = ParseKeys(allKeys);
+
+  const data = combineMeta(allVidArr);
+  let initListData = combineFilters(combineMeta(allVidArr), [], null, "desc");
+  initListData = initListData.slice(0, 20);
   return {
     props: {
       data,

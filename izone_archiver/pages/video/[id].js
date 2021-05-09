@@ -1,31 +1,28 @@
-import React, { useContext } from "react";
+import React from "react";
 import { useRouter } from "next/router";
 import Link from "next/link";
-import Moment from "react-moment";
-import _ from "lodash";
 import ReactPlayer from "react-player";
+import ParseKeys from "../../components/ParseKeys";
 import { video_meta } from "../../src/all_videos_new";
-import ListDataContext from "../../contexts/ListDataContext";
-import DateRangeContext from "../../contexts/DateRangeContext";
-import SortContext from "../../contexts/SortContext";
-import { PlayCircleFilled, ArrowLeftOutlined } from "@ant-design/icons";
-import { Typography, Button } from "antd";
+import { ArrowLeftOutlined } from "@ant-design/icons";
+import { Typography } from "antd";
 
 const { Title } = Typography;
 
-const AWS = require("aws-sdk");
-AWS.config.update({
-  accessKeyId: process.env.NEXT_PUBLIC_AWS_ACCESS_KEY_ID,
-  secretAccessKey: process.env.NEXT_PUBLIC_AWS_SECRET_ACCESS_KEY,
+const S3 = require("aws-sdk/clients/s3");
+const s3 = new S3({
   region: "us-east-2",
+  credentials: {
+    accessKeyId: process.env.NEXT_PUBLIC_AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.NEXT_PUBLIC_AWS_SECRET_ACCESS_KEY,
+  },
 });
-const s3 = new AWS.S3();
 
 export default function Video({ vidObj }) {
   const router = useRouter();
   const { id } = router.query;
 
-  const { vidUrl, subs, thumbUrl, date, title, duration } = vidObj;
+  const { vidUrl, subs, date, title } = vidObj;
   return (
     <div>
       <div
@@ -39,27 +36,8 @@ export default function Video({ vidObj }) {
           display: "block",
         }}
       >
-        {/* <Link
-          to={{
-            pathname: "/",
-            state: {
-              data: data,
-              listData: listData,
-              sort: sort,
-              dateRange: dateRange,
-            },
-          }}
-        > */}
         <Link href="/">
-          <ArrowLeftOutlined
-            style={{ color: "black" }}
-            //   onClick={() => {
-            //     router.push({
-            //       pathname: "/",
-            //       query: {},
-            //     });
-            //   }}
-          />
+          <ArrowLeftOutlined style={{ color: "black" }} />
         </Link>
       </div>
       <div style={{ paddingTop: "20px" }}>
@@ -94,6 +72,7 @@ export default function Video({ vidObj }) {
                 file: {
                   attributes: {
                     crossOrigin: "true",
+                    controlsList: "nodownload",
                   },
                 },
                 tracks: subs ? subs : [],
@@ -115,6 +94,7 @@ export default function Video({ vidObj }) {
 }
 
 function combineMeta(data) {
+  //from aws
   let filteredData = data.map(({ title, vidUrl, subs, thumbUrl }) => {
     return {
       id: parseInt(title),
@@ -123,76 +103,45 @@ function combineMeta(data) {
       thumbUrl: thumbUrl,
     };
   });
-  const mergedList = _.map(filteredData, function (item) {
-    return _.extend(item, _.find(video_meta, { id: item.id }));
-  });
-  return mergedList;
-}
-
-function pullData(resp) {
-  const keys = resp.Contents.map((o) => o.Key);
-  let uniqueDirs = [];
-  keys.forEach((key) => {
-    if (!uniqueDirs.includes(key.split("/")[0])) {
-      uniqueDirs.push(key.split("/")[0]);
-    }
-  });
-
-  let vidArr = [];
-  uniqueDirs.forEach((dir) => {
-    const vidFiles = keys.filter((element) => element.startsWith(dir));
-    //duration requires a getObject call, perhaps try to generate using python?
-    const vidPath = vidFiles.filter((element) => element.endsWith(".mp4"))[0];
-    const thumbPath = vidFiles.filter((element) => element.endsWith(".jpg"))[0];
-    const title = vidPath.split("/")[1].replace(".mp4", "");
-    const vidUrl = `https://${process.env.NEXT_PUBLIC_BUCKET_NAME}.s3.us-east-2.amazonaws.com/${vidPath}`;
-    const thumbUrl = `https://${process.env.NEXT_PUBLIC_BUCKET_NAME}.s3.us-east-2.amazonaws.com/${thumbPath}`;
-
-    let subs = [];
-    const subFiles = vidFiles.filter((element) => element.endsWith(".vtt"));
-    subFiles.forEach((subPath) => {
-      const sub = subPath.split("/")[1];
-      subs.push({
-        kind: "subtitles",
-        src: `https://${process.env.NEXT_PUBLIC_BUCKET_NAME}.s3.us-east-2.amazonaws.com/${subPath}`,
-        srcLang: sub,
-      });
-    });
-
-    vidArr.push({
-      title: title,
-      vidUrl: vidUrl,
-      subs: subs,
-      thumbUrl: thumbUrl,
-    });
-  });
-  return vidArr;
+  const mergedArr = filteredData.map((item, index) =>
+    Object.assign({}, item, video_meta[553 - index])
+  );
+  return mergedArr;
 }
 
 const awsParams = {
   Bucket: process.env.NEXT_PUBLIC_BUCKET_NAME,
-  MaxKeys: 999999,
+  Delimiter: "/",
 };
 
+async function listAllKeys(params, allKeys = []) {
+  const resp = await s3.listObjectsV2(params).promise();
+
+  resp.Contents.forEach((o) => allKeys.push(o.Key));
+
+  if (resp.NextContinuationToken) {
+    params.ContinuationToken = resp.NextContinuationToken;
+    await listAllKeys(params, allKeys);
+  }
+  return allKeys;
+}
+
+// export async function getServerSideProps({ params }) {
 export async function getStaticProps({ params }) {
-  const resp = await s3.listObjectsV2(awsParams).promise();
-  const vidArr = combineMeta(pullData(resp));
+  const allKeys = await listAllKeys({
+    Bucket: process.env.NEXT_PUBLIC_BUCKET_NAME,
+  });
+  const vidArr = combineMeta(ParseKeys(allKeys));
   const vidObj = vidArr.filter((vid) => vid.id === parseInt(params.id))[0];
   return { props: { vidObj } };
 }
 
 export async function getStaticPaths() {
   const resp = await s3.listObjectsV2(awsParams).promise();
-  const vidArr = combineMeta(pullData(resp));
-  const paths = vidArr.map((video) => ({
+  const paths = resp.CommonPrefixes.map((video) => ({
     params: {
-      id: video.id.toString(),
-      //   date: video.date,
-      //   subs: video.subs,
-      //   title: video.title,
-      //   vidUrl: video.vidUrl,
+      id: video.Prefix.replace("/", "").split("_")[1],
     },
   }));
-  console.log(paths);
   return { paths, fallback: false };
 }
