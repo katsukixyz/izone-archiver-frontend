@@ -2,6 +2,8 @@ import React from "react";
 import { useRouter } from "next/router";
 import Link from "next/link";
 import ReactPlayer from "react-player";
+import * as dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
 import ParseKeys from "../../components/ParseKeys";
 import { video_meta } from "../../src/all_videos_new";
 import { ArrowLeftOutlined } from "@ant-design/icons";
@@ -17,6 +19,8 @@ const s3 = new S3({
     secretAccessKey: process.env.NEXT_PUBLIC_AWS_SECRET_ACCESS_KEY,
   },
 });
+
+dayjs.extend(utc);
 
 export default function Video({ vidObj }) {
   const router = useRouter();
@@ -81,11 +85,7 @@ export default function Video({ vidObj }) {
           </div>
           <div className="cardMeta" style={{ paddingTop: "20px" }}>
             <Title level={4}>{title}</Title>
-            <p>
-              <Moment local utc format="MMMM Do YYYY, h:mm:ss A">
-                {date}
-              </Moment>
-            </p>
+            <p>{dayjs.utc(date).local().format("MMMM D YYYY, h:mm:ss A")}</p>
           </div>
         </div>
       </div>
