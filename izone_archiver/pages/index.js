@@ -38,7 +38,18 @@ export default function VideoList({ data, initListData }) {
 
   function fetchNextData() {
     //compare listData to data and get n more results
-    const sortedData = combineFilters(data, dateRange, sort);
+    let sortedData = combineFilters(data, dateRange, sort, listData);
+    sortedData = sortedData.filter(function (item) {
+      if (
+        dayjs
+          .utc(item.date)
+          .local()
+          .isBetween(dateRange[0], dateRange[1], "day", "[]")
+      ) {
+        return true;
+      }
+    });
+
     if (sortedData.length !== listData.length) {
       const lastIndex = listData.length - 1;
       const index = sortedData.findIndex(
@@ -178,7 +189,7 @@ export default function VideoList({ data, initListData }) {
   );
 }
 
-function combineFilters(data, dateRange, sort) {
+function combineFilters(data, dateRange, sort, listData = []) {
   let dateFilteredListData;
   let sortFilteredListData;
   //date comes first
