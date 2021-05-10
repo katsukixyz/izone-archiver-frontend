@@ -1,6 +1,7 @@
 import React from "react";
 import { useRouter } from "next/router";
 import Link from "next/link";
+import Head from "next/head";
 import ReactPlayer from "react-player";
 import * as dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
@@ -29,6 +30,15 @@ export default function Video({ vidObj }) {
   const { vidUrl, subs, date, title } = vidObj;
   return (
     <div>
+      <Head>
+        <title>{title}</title>
+        <meta property="og:site_name" content="IZ*ONE VLIVE Archive" />
+        <meta property="og:title" content={title} />
+        <meta
+          property="og:description"
+          content={`${dayjs.utc(date).format("YYYY-MM-DD")} ${id} ${title}`}
+        />
+      </Head>
       <div
         style={{
           fontSize: "18px",

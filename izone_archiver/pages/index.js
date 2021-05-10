@@ -1,5 +1,6 @@
 import React, { useEffect, useContext } from "react";
 import Link from "next/link";
+import Head from "next/head";
 import ParseKeys from "../components/ParseKeys";
 import * as dayjs from "dayjs";
 import isBetween from "dayjs/plugin/isBetween";
@@ -74,6 +75,15 @@ export default function VideoList({ data, initListData }) {
 
   return (
     <div className="app">
+      <Head>
+        <title>IZ*ONE VLIVE Archive</title>
+        <meta property="og:site_name" content="IZ*ONE VLIVE Archive" />
+        <meta property="og:title" content="IZ*ONE VLIVE Archive" />
+        <meta
+          property="og:description"
+          content={`View all ${data.length} archived videos of IZ*ONE's VLIVE channel.`}
+        />
+      </Head>
       <div
         className="filter"
         style={{
