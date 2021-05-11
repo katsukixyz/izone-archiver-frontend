@@ -76,22 +76,27 @@ export default function Video({ vidObj }) {
           }}
         >
           <div className="video" style={{ width: "100%" }}>
-            <ReactPlayer
-              url={vidUrl}
-              width="100%"
-              height="100%"
+            <video
               controls
-              playing
-              config={{
-                file: {
-                  attributes: {
-                    crossOrigin: "true",
-                    controlsList: "nodownload",
-                  },
-                },
-                tracks: subs ? subs : [],
+              autoPlay
+              style={{
+                width: "100%",
+                height: "100%",
               }}
-            />
+              controlsList="nodownload"
+              crossOrigin="anonymous"
+            >
+              <source src={vidUrl} type="video/mp4" />
+              {subs.map(({ src, srcLang }) => (
+                <track
+                  key={srcLang}
+                  src={src}
+                  label={srcLang}
+                  kind="subtitles"
+                  srcLang={srcLang}
+                />
+              ))}
+            </video>
           </div>
           <div className="cardMeta" style={{ paddingTop: "20px" }}>
             <Title level={4}>{title}</Title>
