@@ -22,24 +22,22 @@ export default function MyApp({ Component, pageProps }) {
         <DateRangeContext.Provider value={{ dateRange, setDateRange }}>
           <SortContext.Provider value={{ sort, setSort }}>
             <Navbar bg="dark" variant="dark" expand="lg">
-              <Link href="/">
-                <Navbar.Brand href="/">
-                  <div style={{ height: "45px" }}>
-                    <Image src="/logo.svg" width={46} height={44} />
-                  </div>
-                </Navbar.Brand>
-              </Link>
+              <Navbar.Brand href="/">
+                <div style={{ height: "45px" }}>
+                  <Image src="/logo.svg" width={46} height={44} />
+                </div>
+              </Navbar.Brand>
               <Navbar.Collapse className="justify-content-end">
-                <Link href="/donate">
-                  <Nav.Link href="/donate" style={{ color: "white" }}>
-                    Donate
-                  </Nav.Link>
-                </Link>
-                <Link href="/contact">
-                  <Nav.Link href="/contact" style={{ color: "white" }}>
-                    Contact
-                  </Nav.Link>
-                </Link>
+                <Nav.Link
+                  href="https://patreon.com/katsukixyz"
+                  target="_blank"
+                  style={{ color: "white" }}
+                >
+                  Donate
+                </Nav.Link>
+                <Nav.Link href="/contact" style={{ color: "white" }}>
+                  Contact
+                </Nav.Link>
               </Navbar.Collapse>
             </Navbar>
             <Component {...pageProps} />
