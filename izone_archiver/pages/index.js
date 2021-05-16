@@ -2,17 +2,19 @@ import React, { useEffect, useContext } from "react";
 import Link from "next/link";
 import Head from "next/head";
 import ParseKeys from "../components/ParseKeys";
+import FilterData from "../components/FilterData";
 import * as dayjs from "dayjs";
 import isBetween from "dayjs/plugin/isBetween";
 import utc from "dayjs/plugin/utc";
 import InfiniteScroll from "react-infinite-scroll-component";
 import { video_meta } from "../src/all_videos_new";
-import { Select, Typography, DatePicker } from "antd";
+import { Typography } from "antd";
 import { PlayCircleFilled } from "@ant-design/icons";
 import ReactPlayer from "react-player";
 import ListDataContext from "../contexts/ListDataContext";
 import DateRangeContext from "../contexts/DateRangeContext";
 import SortContext from "../contexts/SortContext";
+import SearchContext from "../contexts/SearchContext";
 
 const S3 = require("aws-sdk/clients/s3");
 const s3 = new S3({
@@ -23,35 +25,20 @@ const s3 = new S3({
   },
 });
 
-const { RangePicker } = DatePicker;
-const { Option } = Select;
 const { Title } = Typography;
 
 dayjs.extend(isBetween);
 dayjs.extend(utc);
 
-//! https://betterprogramming.pub/how-to-hide-your-api-keys-c2b952bc07e6
-
 export default function VideoList({ data, initListData }) {
   const { listData, setListData } = useContext(ListDataContext);
   const { dateRange, setDateRange } = useContext(DateRangeContext);
   const { sort, setSort } = useContext(SortContext);
+  const { search, setSearch } = useContext(SearchContext);
 
   function fetchNextData() {
     //compare listData to data and get n more results
-    let sortedData = combineFilters(data, dateRange, sort);
-    if (dateRange != null) {
-      sortedData = sortedData.filter(function (item) {
-        if (
-          dayjs
-            .utc(item.date)
-            .local()
-            .isBetween(dateRange[0], dateRange[1], "day", "[]")
-        ) {
-          return true;
-        }
-      });
-    }
+    let sortedData = combineFilters(data, dateRange, sort, search);
 
     if (sortedData.length !== listData.length) {
       const lastIndex = listData.length - 1;
@@ -84,38 +71,19 @@ export default function VideoList({ data, initListData }) {
           content={`View all ${data.length} archived videos of IZ*ONE's VLIVE channel.`}
         />
       </Head>
-      <div
-        className="filter"
-        style={{
-          position: "-webkit-sticky",
-          position: "sticky",
-          top: 0,
-          zIndex: 10,
-        }}
-      >
-        <RangePicker
-          value={dateRange}
-          onChange={(value) => {
-            setDateRange(value);
-            const sorted = combineFilters(data, value, sort).slice(0, 20);
-            // const nMatchedListData = sorted.slice(0, 20);
-            setListData(sorted);
-          }}
-        />
-        <Select
-          value={sort}
-          defaultValue="desc"
-          onChange={(value) => {
-            setSort(value);
-            const sorted = combineFilters(data, dateRange, value).slice(0, 20);
-            // const nMatchedListData = sorted.slice(0, 20);
-            setListData(sorted);
-          }}
-        >
-          <Option value="desc">Most to least recent</Option>
-          <Option value="asc">Least to most recent</Option>
-        </Select>
-      </div>
+
+      <FilterData
+        combineFilters={combineFilters}
+        setDateRange={setDateRange}
+        setSort={setSort}
+        setSearch={setSearch}
+        setListData={setListData}
+        data={data}
+        dateRange={dateRange}
+        sort={sort}
+        search={search}
+      />
+
       <InfiniteScroll
         dataLength={listData ? listData.length : 0}
         hasMore={true}
@@ -201,10 +169,22 @@ export default function VideoList({ data, initListData }) {
   );
 }
 
-function combineFilters(data, dateRange, sort) {
+function Duration({ timestamp }) {
+  let h = Math.floor(timestamp / 3600);
+  let m = Math.floor((timestamp % 3600) / 60);
+  let s = Math.floor(timestamp % 60);
+  let hDisplay = h > 0 ? "0" + h + ":" : "";
+  let mDisplay = m < 10 ? "0" + m + ":" : m + ":";
+  let sDisplay = s < 10 ? "0" + s : s;
+  return hDisplay + mDisplay + sDisplay;
+}
+
+function combineFilters(data, dateRange, sort, search) {
   let dateFilteredListData;
+  let searchFilteredListData;
   let sortFilteredListData;
-  //date comes first
+
+  //date first
   if (dateRange != null) {
     dateFilteredListData = data.filter(function (item) {
       if (
@@ -216,40 +196,31 @@ function combineFilters(data, dateRange, sort) {
         return true;
       }
     });
-    //sorting comes last
-    if (sort === "asc") {
-      //destructive, changes dateFilteredListData
-      sortFilteredListData = dateFilteredListData.sort(
-        (a, b) => dayjs(a.date).unix() - dayjs(b.date).unix()
-      );
-    } else {
-      sortFilteredListData = dateFilteredListData.sort(
-        (a, b) => dayjs(b.date).unix() - dayjs(a.date).unix()
-      );
-    }
   } else {
-    if (sort === "asc") {
-      //destructive, changes dateFilteredListData
-      sortFilteredListData = data.sort(
-        (a, b) => dayjs(a.date).unix() - dayjs(b.date).unix()
-      );
-    } else {
-      sortFilteredListData = data.sort(
-        (a, b) => dayjs(b.date).unix() - dayjs(a.date).unix()
-      );
-    }
+    dateFilteredListData = data;
   }
-  return sortFilteredListData;
-}
 
-function Duration({ timestamp }) {
-  let h = Math.floor(timestamp / 3600);
-  let m = Math.floor((timestamp % 3600) / 60);
-  let s = Math.floor(timestamp % 60);
-  let hDisplay = h > 0 ? "0" + h + ":" : "";
-  let mDisplay = m < 10 ? "0" + m + ":" : m + ":";
-  let sDisplay = s < 10 ? "0" + s : s;
-  return hDisplay + mDisplay + sDisplay;
+  //search next
+  if (search != "") {
+    searchFilteredListData = dateFilteredListData.filter((item) =>
+      item.title.toLowerCase().includes(search)
+    );
+  } else {
+    searchFilteredListData = dateFilteredListData;
+  }
+
+  //sort last
+  if (sort === "asc") {
+    sortFilteredListData = searchFilteredListData.sort(
+      (a, b) => dayjs(a.date).unix() - dayjs(b.date).unix()
+    );
+  } else {
+    sortFilteredListData = searchFilteredListData.sort(
+      (a, b) => dayjs(b.date).unix() - dayjs(a.date).unix()
+    );
+  }
+
+  return sortFilteredListData;
 }
 
 function combineMeta(data) {
@@ -288,7 +259,7 @@ export async function getStaticProps() {
   const allVidArr = ParseKeys(allKeys);
 
   const data = combineMeta(allVidArr);
-  let initListData = combineFilters(combineMeta(allVidArr), null, "desc");
+  let initListData = combineFilters(combineMeta(allVidArr), null, "desc", "");
   initListData = initListData.slice(0, 20);
   return {
     props: {
@@ -297,8 +268,3 @@ export async function getStaticProps() {
     },
   };
 }
-
-// https://www.npmjs.com/package/react-player
-//https://qiita.com/mehdi/items/95a250cd36fa11fd6856
-// https://www.channelape.com/uncategorized/host-images-amazon-s3-cheap-5-minutes/
-// https://www.youtube.com/watch?v=Wn0TtkoRx58

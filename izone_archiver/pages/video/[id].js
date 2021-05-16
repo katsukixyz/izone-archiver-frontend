@@ -2,7 +2,6 @@ import React from "react";
 import { useRouter } from "next/router";
 import Link from "next/link";
 import Head from "next/head";
-import ReactPlayer from "react-player";
 import * as dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import ParseKeys from "../../components/ParseKeys";

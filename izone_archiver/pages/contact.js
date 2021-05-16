@@ -1,7 +1,6 @@
 import React from "react";
 
 export default function Contact() {
-  //   return <div>joe</div>;
   return (
     <div className="contact" style={{ paddingTop: "20px" }}>
       <div
